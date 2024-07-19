@@ -1,22 +1,25 @@
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
 const authenticateJWT = (req, res, next) => {
-  const authHeader = req.header('Authorization');
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-  if (!authHeader) {
-    return res.status(401).json({ message: 'Authorization header missing' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  jwt.verify(token, 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid token' });
+    if (!token) {
+        return res.sendStatus(401);
     }
+    console.log(token);
+    console.log(process.env.JWT_SECRET);
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            console.error('Token verification error:', err);
+            return res.sendStatus(403);
+        }
+        
+        req.userId = decoded.userId; 
 
-    req.user = user;
-    next();
-  });
+        next();
+    });
 };
 
 module.exports = authenticateJWT;

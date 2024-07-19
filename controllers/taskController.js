@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const jwt = require('jsonwebtoken');
 
 exports.getAllTasks = async (req, res) => {
     
@@ -14,22 +15,28 @@ exports.getAllTasks = async (req, res) => {
 
 exports.createTodo = async (req, res) => {
     const { title, description, status, dueDate } = req.body;
-    const userId = req.params.userId; 
-  
+    const token = req.headers.authorization && req.headers.authorization.split(' ')[1];
+
     try {
-     
-      const [userRows] = await db.execute('SELECT id FROM users WHERE id = ?', [userId]);
-      if (userRows.length === 0) {
-        return res.status(404).json({ message: 'User not found' });
-      }
+       
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.userId;
 
-      await db.execute('INSERT INTO tasks (userId, title, description, status, dueDate) VALUES (?, ?, ?, ?, ?)', [userId, title, description, status, dueDate]);
-      
-      res.status(200).json({ message: 'Task created successfully' });
+        const [userRows] = await db.query('SELECT id FROM users WHERE id = ?', [userId]);
+        if (userRows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const statusValue = status !== undefined ? status : null;
+        const dueDateValue = dueDate !== undefined ? dueDate : null;
+
+        const insertQuery = 'INSERT INTO tasks (userId, title, description, status, dueDate) VALUES (?, ?, ?, ?, ?)';
+        const insertValues = [userId, title, description, statusValue, dueDateValue];
+        await db.execute(insertQuery, insertValues);
+
+        res.status(200).json({ message: 'Task created successfully' });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Error creating task' });
+        console.error('Error creating task:', error);
+        res.status(500).json({ message: 'Error creating task', error: error.message });
     }
-  };
-  
-
+};

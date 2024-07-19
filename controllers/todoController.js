@@ -1,11 +1,10 @@
 const db = require('../config/db');
+const jwt = require('jsonwebtoken');
 
 exports.finishtodo = async (req, res) => {
-  const userId = req.params.userId;
-  const taskId = req.params.taskId;
   const { fieldToUpdate, valueToUpdate } = req.body;
+  const token = req.headers.authorization && req.headers.authorization.split(' ')[1];
 
-  console.log('Received Params:', userId, taskId);
   console.log('Received Body:', req.body);
 
   const allowedFields = ['status', 'title', 'description'];
@@ -14,15 +13,20 @@ exports.finishtodo = async (req, res) => {
   }
 
   try {
-   
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId; 
+    const taskId = req.params.taskId; 
+
+    console.log('Decoded Token:', decoded);
+
     const [tasks] = await db.query(
       'SELECT * FROM tasks WHERE userId = ? AND id = ?',
       [userId, taskId]
     );
 
     console.log('Tasks Found:', tasks);
-    console.log(userId,taskId);
-    
+    console.log(userId, taskId);
+
     if (tasks.length === 0) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -76,23 +80,30 @@ exports.listtodo = async (req, res) => {
 };
 
 exports.TodoById = async (req, res) => {
-  const userId = req.params.userId;
+  const token = req.headers.authorization && req.headers.authorization.split(' ')[1];
 
-  if (!userId) {
-      return res.status(400).send('User ID is required');
+  if (!token) {
+      return res.status(401).send('Authorization token is required');
   }
 
   try {
-      const sql = 'SELECT * FROM tasks WHERE userId = ?';
-      const results = await db.query(sql, [userId]);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.userId;
 
-      if (results.length === 0) {
-          return res.status(404).send('User not found');
+      if (!userId) {
+          return res.status(400).send('User ID is required');
       }
 
-      res.json(results[0]); 
+      const sql = 'SELECT * FROM tasks WHERE userId = ?';
+      const [results] = await db.query(sql, [userId]);
+
+      if (results.length === 0) {
+          return res.status(404).send('Tasks not found');
+      }
+
+      res.json(results);
   } catch (error) {
-      console.error('Error fetching User:', error);
-      res.status(500).send('Error fetching User');
+      console.error('Error fetching tasks:', error);
+      res.status(500).send('Error fetching tasks');
   }
 };
